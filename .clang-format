@@ -1,0 +1,18 @@
+---
+BasedOnStyle: Chromium
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+AlignTrailingComments: false
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+BreakBeforeBraces: Linux
+ColumnLimit: 0
+ContinuationIndentWidth: 2
+Cpp11BracedListStyle: false
+ReflowComments: false
+SpaceBeforeCpp11BracedList: true
+SpacesBeforeTrailingComments: 1
+TabWidth: 2
+UseTab: Always
+...
