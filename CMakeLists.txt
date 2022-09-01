@@ -7,7 +7,7 @@ IF(WIN32)
     add_definitions(-DB2G_WIN32)
 ENDIF()
 
-include_directories(lib/)
+include_directories(lib/ lib/STC/include/)
 
 set(SOURCE_FILES
         # Program

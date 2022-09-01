@@ -1,3 +1,6 @@
 [submodule "lib/stb"]
 	path = lib/stb
 	url = https://github.com/nothings/stb
+[submodule "lib/STC"]
+	path = lib/STC
+	url = https://github.com/tylov/STC
