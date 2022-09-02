@@ -432,7 +432,7 @@ int main()
 			printf("\n");
 		}
 
-		printf("};\n\n");
+		printf("};\n");
 	}
 
 	fflush(stdout);
