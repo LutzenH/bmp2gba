@@ -1,3 +1,5 @@
+#include "b2g_platform.h"
+
 #include <stb/stb_image.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -18,7 +20,7 @@ typedef struct {
 typedef uint16_t MapTileIndex;
 
 typedef struct {
-	char map_name[64];
+	char map_name[128];
 
 	int map_width;
 	int map_height;
@@ -91,25 +93,8 @@ int main()
 {
 	static const COLOR transparent_color = RGB15(0, 0, 0);
 
-	const char* file_names[] = {
-		"data/img/central_room_bg0.bmp",
-		"data/img/four_rooms_bg0.bmp",
-		"data/img/four_rooms_bg1.bmp",
-		"data/img/lobby_bg0.bmp",
-		"data/img/lobby_bg1.bmp",
-		"data/img/small_opening_bg0.bmp",
-		"data/img/small_opening_bg1.bmp",
-		"data/img/small_plus_bg0.bmp",
-		"data/img/square_medium_bg0.bmp",
-		"data/img/square_medium_bg1.bmp",
-		"data/img/thin_hallways_bg0.bmp",
-		"data/img/thin_hallways_bg1.bmp",
-		"data/img/tight_gap_bg0.bmp",
-		"data/img/tight_gap_bg1.bmp",
-		"data/img/vertical_side_ways_bg0.bmp",
-		"data/img/vertical_side_ways_bg1.bmp",
-	};
-	size_t file_names_count = sizeof(file_names) / sizeof(file_names[0]);
+	size_t file_names_count = 0;
+	const char** file_names = platform_list_files_within_folder(".", &file_names_count, false, ".bmp");
 
 	cmap_ct tiles = cmap_ct_init();
 	Map** maps = c_calloc(sizeof(Map*), file_names_count);
@@ -158,11 +143,11 @@ int main()
 			if (map_name != NULL) {
 				map_name++;
 			} else {
-				map_name = "";
+				map_name = file_name;
 			}
 			snprintf(maps[i]->map_name, sizeof(maps[i]->map_name), "%s", map_name);
 			for (int j = 0; j < strlen(maps[i]->map_name); ++j) {
-				if (maps[i]->map_name[j] == ' ') {
+				if (maps[i]->map_name[j] == ' ' || maps[i]->map_name[j] == '/' || maps[i]->map_name[j] == '\\') {
 					maps[i]->map_name[j] = '_';
 				}
 				if (maps[i]->map_name[j] == '.') {
@@ -201,6 +186,13 @@ int main()
 
 			map_count++;
 		}
+	}
+
+	if (map_count == 0) {
+		fprintf(stderr, "Failed to find any .bmp images in this folder!\n");
+		c_free(file_names);
+		c_free(maps);
+		return 1;
 	}
 
 	// Create sorted list of color sets (based on the amount of unique colors on a tile).
@@ -466,6 +458,8 @@ int main()
 			}
 		}
 		c_free(maps);
+
+		c_free(file_names);
 	}
 
 	return 0;
