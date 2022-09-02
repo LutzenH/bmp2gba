@@ -1,7 +1,33 @@
 #include <stdio.h>
 #include <windows.h>
 
-int internal_platform_list_files_within_folder(cvec_str* folders, const char* folder, bool recursive, const char* filter_by_extension, const char* prefix)
+unsigned char* platform_load_file_in_memory(const char* path, unsigned int* file_size)
+{
+	HANDLE file_handle = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file_handle == INVALID_HANDLE_VALUE)
+	{
+		*file_size = 0;
+		return NULL;
+	}
+
+	DWORD win_file_size = GetFileSize(file_handle, NULL);
+
+	unsigned char* buffer = (unsigned char*)malloc(win_file_size);
+
+	DWORD number_of_bytes_read = 0;
+	bool success = ReadFile(file_handle, buffer, win_file_size, &number_of_bytes_read,NULL);
+	CloseHandle(file_handle);
+	if(!success) {
+		fprintf(stderr, "Failed to read file: %s , reason: GetLastError=%08lx\n", path, GetLastError());
+		*file_size = 0;
+		return NULL;
+	}
+
+	*file_size = win_file_size;
+	return buffer;
+}
+
+int internal_platform_list_files_within_folder(cvec_str* folders, const char* folder, int recursive, const char* filter_by_extension, const char* prefix)
 {
 	int count = 0;
 
@@ -36,7 +62,7 @@ int internal_platform_list_files_within_folder(cvec_str* folders, const char* fo
 	return count;
 }
 
-const char** platform_list_files_within_folder(const char* folder_path, size_t* string_count, bool recursive, const char* filter_by_extension) {
+const char** platform_list_files_within_folder(const char* folder_path, unsigned int* string_count, int recursive, const char* filter_by_extension) {
 	cvec_str folders = cvec_str_init();
 
 	internal_platform_list_files_within_folder(&folders, folder_path, recursive, filter_by_extension, "");
