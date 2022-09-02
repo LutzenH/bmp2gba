@@ -17,9 +17,6 @@ set(SOURCE_FILES
         # Program
         src/b2g_main.c
         src/b2g_platform.c
-        src/b2g_platform.h
-
-        # Libraries
-        lib/stb_image.c)
+        src/b2g_platform.h)
 
 add_executable(bmp2gba ${SOURCE_FILES})

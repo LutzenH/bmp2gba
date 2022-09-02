@@ -4,3 +4,6 @@
 [submodule "lib/STC"]
 	path = lib/STC
 	url = https://github.com/tylov/STC
+[submodule "lib/cosmopolitan"]
+	path = lib/cosmopolitan
+	url = https://github.com/jart/cosmopolitan

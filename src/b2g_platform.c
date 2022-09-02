@@ -1,7 +1,5 @@
 #include "b2g_platform.h"
 
-#include <string.h>
-
 #define i_implement
 #include <stc/cstr.h>
 
@@ -23,7 +21,7 @@ static inline bool internal_platform_helper_string_ends_with(const char* string,
 	return strncmp(string + string_length - suffix_length, suffix, suffix_length) == 0;
 }
 
-const char** internal_platform_string_vector_to_c_style(cvec_str* folders, size_t* string_count) {
+const char** internal_platform_string_vector_to_c_style(cvec_str* folders, unsigned int* string_count) {
 	size_t count = cvec_str_size(folders);
 
 	size_t buffer_size = 0;
@@ -54,7 +52,7 @@ const char** internal_platform_string_vector_to_c_style(cvec_str* folders, size_
 
 #if defined(B2G_WIN32)
 #include "b2g_platform_win32.c"
-#elif defined(B2G_LINUX)
+#elif defined(B2G_LINUX) || defined(B2G_APE)
 #include "b2g_platform_posix.c"
 #else
 #error The platform you are compiling for is currently not implemented!

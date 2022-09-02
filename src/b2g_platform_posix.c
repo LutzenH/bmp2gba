@@ -1,6 +1,25 @@
 #include <stdio.h>
 #include <dirent.h>
 
+unsigned char* platform_load_file_in_memory(const char* path, unsigned int* file_size) {
+	// Read file into memory
+	FILE* file = fopen(path, "rb");
+	if (file == NULL) {
+		*file_size = 0;
+		return NULL;
+	}
+	fseek(file, 0, SEEK_END);
+	size_t size = ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+	unsigned char* buffer = (unsigned char*)malloc(size);
+	fread(buffer, size, 1, file);
+	fclose(file);
+
+	*file_size = size;
+	return buffer;
+}
+
 int internal_platform_list_files_within_folder(cvec_str* folders, const char* folder, bool recursive, const char* filter_by_extension, const char* prefix) {
 	int count = 0;
 
@@ -31,7 +50,7 @@ int internal_platform_list_files_within_folder(cvec_str* folders, const char* fo
 	return count;
 }
 
-const char** platform_list_files_within_folder(const char* folder_path, size_t* string_count, bool recursive, const char* filter_by_extension) {
+const char** platform_list_files_within_folder(const char* folder_path, unsigned int* string_count, int recursive, const char* filter_by_extension) {
 	cvec_str folders = cvec_str_init();
 
 	internal_platform_list_files_within_folder(&folders, folder_path, recursive, filter_by_extension, "");

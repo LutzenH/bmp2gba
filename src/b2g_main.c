@@ -1,6 +1,6 @@
 #include "b2g_platform.h"
 
-#include <stb/stb_image.h>
+#include <stb_image.c>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -93,7 +93,7 @@ int main()
 {
 	static const COLOR transparent_color = RGB15(0, 0, 0);
 
-	size_t file_names_count = 0;
+	unsigned int file_names_count = 0;
 	const char** file_names = platform_list_files_within_folder(".", &file_names_count, false, ".bmp");
 
 	cmap_ct tiles = cmap_ct_init();
@@ -108,9 +108,17 @@ int main()
 
 			int width = 0, height = 0, channels_in_file = 0;
 
-			RGB8* img = (RGB8*)stbi_load(file_name, &width, &height, &channels_in_file, 3);
-			if (img == NULL) {
+			unsigned int file_size = 0;
+			unsigned char* file = platform_load_file_in_memory(file_name, &file_size);
+			if (file == NULL) {
 				fprintf(stderr, "Failed to load image file: %s\n", file_name);
+				continue;
+			}
+
+			RGB8* img = (RGB8*)stbi_load_from_memory(file, (int)file_size, &width, &height, &channels_in_file, 3);
+			c_free(file);
+			if (img == NULL) {
+				fprintf(stderr, "Failed to process image file: %s\n", file_name);
 				continue;
 			}
 
