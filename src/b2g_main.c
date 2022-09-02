@@ -401,7 +401,7 @@ int main()
 					}
 				}
 
-				printf("0x%.02X, ", a_cpal_idx | b_cpal_idx << 4);
+				printf("0x%.02X, ", (a_cpal_idx | b_cpal_idx << 4) & 0xFF);
 			}
 
 			tile_idx++;
