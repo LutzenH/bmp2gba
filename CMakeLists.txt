@@ -5,7 +5,11 @@ set(CMAKE_C_STANDARD 99)
 
 IF(WIN32)
     add_definitions(-DB2G_WIN32)
-ENDIF()
+ELSEIF (APPLE)
+    add_definitions(-DB2G_MACOS)
+ELSEIF (UNIX)
+    add_definitions(-DB2G_LINUX)
+ENDIF ()
 
 include_directories(lib/ lib/STC/include/)
 
