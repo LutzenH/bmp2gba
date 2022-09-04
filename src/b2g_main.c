@@ -5,7 +5,7 @@
 int main()
 {
 	static const COLOR transparent_color = RGB15(0, 0, 0);
-	static const unsigned int brute_force_shuffle_count = 25000;
+	static const unsigned int brute_force_shuffle_count = 250000;
 
 	unsigned int file_names_count = 0;
 	const char** file_names = platform_list_files_within_folder(".", &file_names_count, false, ".bmp");
