@@ -1,3 +1,5 @@
+<img alt="bmp2gba" src="https://user-images.githubusercontent.com/46445220/188315122-ba1086d3-704f-441c-86ff-e07fe7e3063c.png">
+
 # bmp2gba
 
 bmp2gba is a tool for homebrew GBA development written in C99 that converts a folder of .bmp files into a single c-file containing 4bpp tile, palette and map data for the GBA. The c-file is printed to stdout. Simply place the `bmp2gba.com` binary in the folder containing the `.bmp` files and pipe the output of stdout into a file. For example: `./bmp2gba.com > bg_data.c`
