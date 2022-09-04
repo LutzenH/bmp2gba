@@ -28,9 +28,11 @@ int main(int argc, char* argv[])
 		switch (c) {
 			case '?': {
 				printf("error: unknown option: %s\n", opt.optstr);
+				return 1;
 			} break;
 			case ':': {
 				printf("error: missing argument for %s\n", opt.optstr);
+				return 1;
 			} break;
 			case 't': {
 				if (opt.arg) {
