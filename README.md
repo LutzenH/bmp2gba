@@ -14,6 +14,8 @@ Usage:
 bmp2gba --transparent-color FF00FF --brute-force-count 250000 > bg_data.c
 ```
 
+[example.webm](https://user-images.githubusercontent.com/46445220/188323596-82139baf-ab23-4312-b097-6d7544927765.webm)
+
 ## Preparation
 
 Retrieve the repo and submodules:
