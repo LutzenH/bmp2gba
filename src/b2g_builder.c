@@ -269,6 +269,7 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 	}
 
 	// Map tile to palette bank
+	qsort(tile_color_sets, tiles.size, sizeof(TileColorSet), sort_tile_color_set_using_tile_idx);
 	c_foreach(t, cmap_ct, tiles)
 	{
 		uint32_t tile_idx = t.ref->second;
@@ -304,14 +305,12 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 
 	// Fill tiles array.
 	{
-		qsort(tile_color_sets, tiles.size, sizeof(TileColorSet), sort_tile_color_set_using_tile_idx);
-
 		background_data->tiles = calloc(tiles.size, sizeof(Tile));
 		background_data->tile_count = tiles.size;
 
-		int tile_idx = 0;
 		c_foreach(tile, cmap_ct, tiles)
 		{
+			size_t tile_idx = tile.ref->second;
 			ColoredTile ct = tile.ref->first;
 			size_t pb_idx = tile_color_sets[tile_idx].bank_idx;
 
@@ -321,7 +320,7 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 
 				int l_cpal_idx = -1;
 				int r_cpal_idx = -1;
-				for (int k = 0; k < sizeof(background_data->palette_banks[0]) / sizeof(background_data->palette_banks[0][0]); ++k) {
+				for (int k = 0; k < PALETTE_BANK_SIZE; ++k) {
 					if (l_cpal_idx == -1 && l == background_data->palette_banks[pb_idx][k]) {
 						l_cpal_idx = k;
 					}
@@ -333,8 +332,6 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 
 				background_data->tiles[tile_idx].color_idxs[j] = (l_cpal_idx | r_cpal_idx << 4) & 0xFF;
 			}
-
-			tile_idx++;
 		}
 	}
 
