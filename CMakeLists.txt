@@ -16,6 +16,7 @@ include_directories(lib/ lib/STC/include/)
 set(SOURCE_FILES
         # Program
         src/b2g_main.c
+        src/b2g_types.h
         src/b2g_platform.c
         src/b2g_platform.h)
 

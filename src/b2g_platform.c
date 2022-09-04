@@ -14,19 +14,21 @@ static inline bool internal_platform_helper_string_ends_with(const char* string,
 
 	size_t string_length = strlen(string);
 	size_t suffix_length = strlen(suffix);
-	if (suffix_length >  string_length) {
+	if (suffix_length > string_length) {
 		return false;
 	}
 
 	return strncmp(string + string_length - suffix_length, suffix, suffix_length) == 0;
 }
 
-const char** internal_platform_string_vector_to_c_style(cvec_str* folders, unsigned int* string_count) {
+const char** internal_platform_string_vector_to_c_style(cvec_str* folders, unsigned int* string_count)
+{
 	size_t count = cvec_str_size(folders);
 
 	size_t buffer_size = 0;
 	buffer_size += count * sizeof(const char*);
-	c_foreach (i, cvec_str, *folders) {
+	c_foreach(i, cvec_str, *folders)
+	{
 		size_t string_size = cstr_size(i.ref);
 		buffer_size += (string_size + 1) * sizeof(char);
 	}

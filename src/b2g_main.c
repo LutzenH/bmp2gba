@@ -1,107 +1,75 @@
 #include "b2g_platform.h"
+#include "b2g_types.h"
 
-#include <stb_image.c>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
+#include <stb_image.c>
 
-typedef uint16_t COLOR;
-
-typedef struct {
-	uint8_t r;
-	uint8_t g;
-	uint8_t b;
-} RGB8;
+#define PALETTE_BANK_COUNT 16
+#define PALETTE_BANK_SIZE 16
 
 typedef struct {
-	COLOR color[8 * 8];
-} ColoredTile;
+	size_t palette_banks_used;
+	COLOR palette_banks[PALETTE_BANK_COUNT][PALETTE_BANK_SIZE];
 
-typedef uint16_t MapTileIndex;
+	size_t tile_count;
+	Tile* tiles;
 
-typedef struct {
-	char map_name[128];
+	size_t map_count;
+	Map** maps;
+} ProcessedData;
 
-	int map_width;
-	int map_height;
-
-	MapTileIndex tiles[];
-} Map;
-
-#define i_key COLOR
-#define i_tag color
-#include <stc/cset.h>
-
-typedef struct {
-	uint32_t tile_id;
-	cset_color unique_colors;
-	int32_t palette_bank_idx;
-} TileColorSet;
-
-#define RGB15(red, green, blue) ((red) + ((green) << 5) + ((blue) << 10))
-
-#define i_key ColoredTile
-#define i_val uint32_t
-#define i_hash(ct) (ct->color[0] ^ ct->color[1] ^ ct->color[2] ^ ct->color[3] ^ ct->color[4] ^ ct->color[5] ^ ct->color[6] ^ ct->color[7] ^ ct->color[8] ^ ct->color[9] ^ ct->color[10] ^ ct->color[11] ^ ct->color[12] ^ ct->color[13] ^ ct->color[14] ^ ct->color[15] ^ ct->color[16] ^ ct->color[17] ^ ct->color[18] ^ ct->color[19] ^ ct->color[20] ^ ct->color[21] ^ ct->color[22] ^ ct->color[23] ^ ct->color[24] ^ ct->color[25] ^ ct->color[26] ^ ct->color[27] ^ ct->color[28] ^ ct->color[29] ^ ct->color[30] ^ ct->color[31] ^ ct->color[32] ^ ct->color[33] ^ ct->color[34] ^ ct->color[35] ^ ct->color[36] ^ ct->color[37] ^ ct->color[38] ^ ct->color[39] ^ ct->color[40] ^ ct->color[41] ^ ct->color[42] ^ ct->color[43] ^ ct->color[44] ^ ct->color[45] ^ ct->color[46] ^ ct->color[47] ^ ct->color[48] ^ ct->color[49] ^ ct->color[50] ^ ct->color[51] ^ ct->color[52] ^ ct->color[53] ^ ct->color[54] ^ ct->color[55] ^ ct->color[56] ^ ct->color[57] ^ ct->color[58] ^ ct->color[59] ^ ct->color[60] ^ ct->color[61] ^ ct->color[62] ^ ct->color[63])
-#define i_eq c_memcmp_eq
-#define i_tag ct
-#include <stc/cmap.h>
-
-typedef struct {
-	unsigned int bank_idx;
-	cset_color* bank;
-
-	int overlap_count;
-} PaletteOverlap;
-
-int sort_tile_color_set_using_unique_color_count(const void* a, const void* b)
+void calculate_and_print_statistics(const ProcessedData* data, size_t bank_color_sets_used, COLOR transparent_color)
 {
-	TileColorSet* set_a = (TileColorSet*)a;
-	TileColorSet* set_b = (TileColorSet*)b;
-	return (int)(set_a->unique_colors.size) - (int)(set_b->unique_colors.size);
-}
+	cset_color color_dupes = cset_color_init();
+	int total_color_count = 0;
+	int total_duplicate_count = 0;
+	for (int bank_idx = 0; bank_idx < data->palette_banks_used; ++bank_idx) {
+		for (int color_idx = 0; color_idx < PALETTE_BANK_SIZE; ++color_idx) {
+			COLOR value = data->palette_banks[bank_idx][color_idx];
 
-int sort_tile_color_set_using_tile_id(const void* a, const void* b)
-{
-	TileColorSet* set_a = (TileColorSet*)a;
-	TileColorSet* set_b = (TileColorSet*)b;
-	return (int)(set_a->tile_id) - (int)(set_b->tile_id);
-}
+			if (value == transparent_color) {
+				// Transparent color does not count as wasted space.
+				continue;
+			}
 
-int sort_palette_overlap(const void* a, const void* b)
-{
-	PaletteOverlap* po_a = (PaletteOverlap*)a;
-	PaletteOverlap* po_b = (PaletteOverlap*)b;
-	return (int)(po_a->overlap_count) - (int)(po_b->overlap_count);
-}
+			total_color_count++;
 
-int color_set_overlap(const cset_color* containing_set, const cset_color* contained_set)
-{
-	int count = 0;
-
-	c_foreach(i, cset_color, *contained_set)
-	{
-		if (cset_color_contains(containing_set, *i.ref)) {
-			count++;
+			if (cset_color_contains(&color_dupes, value)) {
+				total_duplicate_count++;
+			} else {
+				cset_color_insert(&color_dupes, value);
+			}
 		}
 	}
 
-	return count;
+	cset_color_drop(&color_dupes);
+
+	printf("// ------------------------ statistics ------------------------\n");
+	printf("//   Sets of color versus unique tiles: %zu / %zu = %.4f\n", bank_color_sets_used, data->tile_count, (float)bank_color_sets_used / (float)data->tile_count);
+	printf("//   Colors in palette that are duplicates: %i/%i (%.2f%%)\n", total_duplicate_count, total_color_count, (float)total_duplicate_count / (float)total_color_count * 100.0f);
+	printf("//   Total palette banks used: %zu/%d (%.2f%%)\n", data->palette_banks_used, PALETTE_BANK_COUNT, (float)data->palette_banks_used / (float)PALETTE_BANK_COUNT * 100.0f);
+	printf("//   Tiles used: %zu/%i (%.2f%%)\n", data->tile_count, 1024, (float)data->tile_count / 1024.0f * 100.0f);
+	printf("// ------------------------------------------------------------\n");
 }
 
 int main()
 {
 	static const COLOR transparent_color = RGB15(0, 0, 0);
+	static const unsigned int brute_force_shuffle_count = 2500000;
 
-	unsigned int file_names_count = 0;
-	const char** file_names = platform_list_files_within_folder(".", &file_names_count, false, ".bmp");
-
-	cmap_ct tiles = cmap_ct_init();
-	Map** maps = c_calloc(sizeof(Map*), file_names_count);
+	ProcessedData processed_data = {};
 
 	// Fill tiles and maps.
-	size_t map_count = 0;
+	cmap_ct tiles = cmap_ct_init();
 	{
+		unsigned int file_names_count = 0;
+		const char** file_names = platform_list_files_within_folder(".", &file_names_count, false, ".bmp");
+
+		processed_data.maps = c_calloc(sizeof(Map*), file_names_count); // FIXME: Free me!
+
+		size_t map_count = 0;
+
 		uint32_t total_unique_tiles_count = 0;
 		for (int i = 0; i < file_names_count; ++i) {
 			const char* file_name = file_names[i];
@@ -143,9 +111,10 @@ int main()
 			int map_width = width / 8;
 			int map_height = height / 8;
 
-			maps[i] = c_calloc(sizeof(Map) + (sizeof(MapTileIndex) * map_width * map_height), 1);
-			maps[i]->map_width = map_width;
-			maps[i]->map_height = map_height;
+			processed_data.maps[map_count] = c_calloc(sizeof(Map) + (sizeof(MapTileIndex) * map_width * map_height), 1); // FIXME: Free me!
+			Map* map = processed_data.maps[map_count];
+			map->map_width = map_width;
+			map->map_height = map_height;
 
 			const char* map_name = strrchr(file_name, '/');
 			if (map_name != NULL) {
@@ -153,17 +122,17 @@ int main()
 			} else {
 				map_name = file_name;
 			}
-			snprintf(maps[i]->map_name, sizeof(maps[i]->map_name), "%s", map_name);
-			for (int j = 0; j < strlen(maps[i]->map_name); ++j) {
-				if (maps[i]->map_name[j] == ' ' || maps[i]->map_name[j] == '/' || maps[i]->map_name[j] == '\\') {
-					maps[i]->map_name[j] = '_';
+			snprintf(map->map_name, sizeof(map->map_name), "%s", map_name);
+			for (int j = 0; j < strlen(map->map_name); ++j) {
+				if (map->map_name[j] == ' ' || map->map_name[j] == '/' || map->map_name[j] == '\\') {
+					map->map_name[j] = '_';
 				}
-				if (maps[i]->map_name[j] == '.') {
-					maps[i]->map_name[j] = '\0';
+				if (map->map_name[j] == '.') {
+					map->map_name[j] = '\0';
 				}
 			}
 
-			MapTileIndex* map_tiles = maps[i]->tiles;
+			MapTileIndex* map_tiles = map->tiles;
 
 			for (int tile_y = 0; tile_y < map_height; ++tile_y) {
 				for (int tile_x = 0; tile_x < map_width; ++tile_x) {
@@ -194,280 +163,275 @@ int main()
 
 			map_count++;
 		}
-	}
 
-	if (map_count == 0) {
-		fprintf(stderr, "Failed to find any .bmp images in this folder!\n");
+		processed_data.map_count = map_count;
 		c_free(file_names);
-		c_free(maps);
-		return 1;
+
+		if (processed_data.map_count == 0) {
+			fprintf(stderr, "Failed to find any .bmp images in this folder!\n");
+			c_free(processed_data.maps);
+			return 1;
+		}
 	}
 
-	// Create sorted list of color sets (based on the amount of unique colors on a tile).
+	// Turn every tile into a set and sort based on the amount of unique colors in a tile.
 	TileColorSet* tile_color_sets = c_calloc(tiles.size, sizeof(TileColorSet));
 	{
 		int idx = 0;
 		c_foreach(i, cmap_ct, tiles)
 		{
-			cset_color tile_colors = cset_color_with_capacity(16);
+			tile_color_sets[idx].unique_colors = cset_color_init();
 			for (int j = 0; j < sizeof(i.ref->first.color) / sizeof(i.ref->first.color[0]); ++j) {
-				cset_color_insert(&tile_colors, i.ref->first.color[j]);
+				cset_color_insert(&tile_color_sets[idx].unique_colors, i.ref->first.color[j]);
 			}
-			cset_color_shrink_to_fit(&tile_colors);
 
-			tile_color_sets[idx] = (TileColorSet) {
-				.tile_id = idx,
-				.unique_colors = tile_colors,
-				.palette_bank_idx = -1,
-			};
+			tile_color_sets[idx].tile_idx = idx;
+			tile_color_sets[idx].bank_idx = 0;
+
 			idx++;
 		}
 		qsort(tile_color_sets, tiles.size, sizeof(TileColorSet), sort_tile_color_set_using_unique_color_count);
 	}
 
-	static const int palette_bank_count = 16;
-	cset_color palette_banks[palette_bank_count];
-	for (int i = 0; i < sizeof(palette_banks) / sizeof(palette_banks[0]); ++i) {
-		palette_banks[i] = cset_color_with_capacity(16);
-		cset_color_insert(&palette_banks[i], transparent_color);
+	// Reduce the amount of sets by removing overlapping sets.
+	size_t bank_color_sets_used = 0;
+	BankColorSet* bank_color_sets = c_calloc(tiles.size, sizeof(BankColorSet));
+	cset_color** tile_idx_to_color_set = c_calloc(tiles.size, sizeof(cset_color*));
+	for (int i = (int)tiles.size - 1; i >= 0; --i) {
+		size_t tile_idx = tile_color_sets[i].tile_idx;
+		cset_color* tile_colors = &tile_color_sets[i].unique_colors;
+
+		bool found_color_set_containing_color_set = false;
+		for (int set_idx = 0; set_idx < bank_color_sets_used; ++set_idx) {
+			if (color_set_overlap(bank_color_sets[set_idx].colors, tile_colors) == tile_colors->size) {
+				tile_idx_to_color_set[tile_idx] = bank_color_sets[set_idx].colors;
+				found_color_set_containing_color_set = true;
+			}
+		}
+
+		if (!found_color_set_containing_color_set) {
+			size_t set_idx = bank_color_sets_used;
+
+			cset_color* bank_color_set = c_calloc(1, sizeof(cset_color));
+			*(bank_color_set) = cset_color_init();
+
+			c_foreach(color, cset_color, *tile_colors)
+			{
+				cset_color_insert(bank_color_set, *color.ref);
+			}
+			tile_idx_to_color_set[tile_idx] = bank_color_set;
+
+			bank_color_sets[set_idx].colors = bank_color_set;
+			bank_color_sets[set_idx].bank_idx = 0;
+
+			bank_color_sets_used++;
+		}
 	}
+
+	// TODO: Add tile reduction using H and V flipping.
 
 	// TODO: Make tile palette reduction possible, by adjusting the palette banks so
 	//  that colors of two similar tiles with different colors appear in the same indices in a bank.
 	//  meaning that we can have less tiles which only have a different palette bank.
 
-	// Try to fit all tile colors in as little palette banks as possible.
-	int palette_banks_filled = 0;
-	{
-		PaletteOverlap* sortable_palette_array = c_calloc(palette_bank_count, sizeof(PaletteOverlap));
-		for (int i = (int)tiles.size - 1; i >= 0; --i) {
-			cset_color* tile_colors = &tile_color_sets[i].unique_colors;
+	unsigned int best_found_palette_bank_color_sum = UINT_MAX;
+	cset_color best_found_palette_banks[PALETTE_BANK_COUNT];
+	for (int i = 0; i < sizeof(best_found_palette_banks) / sizeof(best_found_palette_banks[0]); ++i) {
+		best_found_palette_banks[i] = cset_color_with_capacity(PALETTE_BANK_SIZE);
+	}
+	BankColorSet* best_found_palette_bank_color_sets = c_calloc(bank_color_sets_used, sizeof(BankColorSet));
 
-			for (int j = 0; j < palette_bank_count; ++j) {
-				unsigned int bank_idx = 15 - j;
-				cset_color* bank = &palette_banks[bank_idx];
-				int overlap_count = color_set_overlap(bank, tile_colors);
+	cset_color tmp_palette_banks[PALETTE_BANK_COUNT];
+	for (int i = 0; i < sizeof(tmp_palette_banks) / sizeof(tmp_palette_banks[0]); ++i) {
+		tmp_palette_banks[i] = cset_color_with_capacity(PALETTE_BANK_SIZE);
+	}
 
-				sortable_palette_array[j] = (PaletteOverlap) {
-					.bank_idx = bank_idx,
-					.bank = bank,
+	for (int shuffle = 0; shuffle < brute_force_shuffle_count; ++shuffle) {
+		for (int i = 0; i < sizeof(tmp_palette_banks) / sizeof(tmp_palette_banks[0]); ++i) {
+			cset_color_clear(&tmp_palette_banks[i]);
+			cset_color_insert(&tmp_palette_banks[i], transparent_color);
+		}
 
-					.overlap_count = overlap_count,
-				};
-			}
-			qsort(sortable_palette_array, palette_bank_count, sizeof(PaletteOverlap), sort_palette_overlap);
+		size_t used_sets_count = 0;
+		for (int color_set_idx = 0; color_set_idx < bank_color_sets_used; ++color_set_idx) {
+			BankColorSet* bank_color_set = &bank_color_sets[color_set_idx];
+			cset_color* set = bank_color_set->colors;
 
-			int palette_bank_idx = -1;
-			for (int j = palette_bank_count - 1; j >= 0; --j) {
-				PaletteOverlap* pal = &sortable_palette_array[j];
+			int bank_idx;
+			for (bank_idx = 0; bank_idx < PALETTE_BANK_COUNT; ++bank_idx) {
+				cset_color* bank = &tmp_palette_banks[bank_idx];
 
-				if (pal->overlap_count == tile_colors->size) {
-					// Full overlap palette needs no changing.
-					palette_bank_idx = (int)pal->bank_idx;
+				int overlap_count = color_set_overlap(bank, set);
+				if (overlap_count == set->size) {
+					used_sets_count++;
 					break;
 				}
 
-				int bank_space_left = 16 - (int)pal->bank->size;
+				int bank_space_left = PALETTE_BANK_SIZE - (int)bank->size;
 				if (bank_space_left <= 0) {
 					// Bank is full...
 					continue;
 				}
 
-				if ((bank_space_left - ((int)tile_colors->size - pal->overlap_count)) >= 0) {
-					c_foreach(k, cset_color, *tile_colors)
+				if ((bank_space_left - ((int)set->size - overlap_count)) >= 0) {
+					c_foreach(k, cset_color, *set)
 					{
-						cset_color_insert(pal->bank, *k.ref);
+						cset_color_insert(bank, *k.ref);
 					}
-
-					palette_bank_idx = (int)pal->bank_idx;
+					used_sets_count++;
 					break;
 				}
 			}
 
-			if (palette_bank_idx != -1) {
-				tile_color_sets[i].palette_bank_idx = palette_bank_idx;
-			} else {
-				fprintf(stderr, "Failed to insert colors of tile (%i) into a palette bank, either the tile has more than 15 colors or there are no palette banks left!\n", tile_color_sets[i].tile_id);
+			bank_color_set->bank_idx = bank_idx;
+		}
+
+		unsigned int total_color_sum;
+		if (used_sets_count < bank_color_sets_used) {
+			total_color_sum = UINT_MAX; // If we fail to place all color sets we have not found a better palette.
+		} else {
+			total_color_sum = 0;
+			for (int i = 0; i < sizeof(tmp_palette_banks) / sizeof(tmp_palette_banks[0]); ++i) {
+				if (tmp_palette_banks[i].size > 1) {
+					total_color_sum += tmp_palette_banks[i].size;
+				}
 			}
 		}
-		c_free(sortable_palette_array);
 
-		for (int i = 0; i < 16; ++i) {
-			if (palette_banks[i].size > 1) {
-				palette_banks_filled++;
+		if (total_color_sum < best_found_palette_bank_color_sum) {
+			fprintf(stderr, "Found smaller palette: %u -> %u\n", best_found_palette_bank_color_sum, total_color_sum);
+			best_found_palette_bank_color_sum = total_color_sum;
+
+			for (int i = 0; i < sizeof(tmp_palette_banks) / sizeof(tmp_palette_banks[0]); ++i) {
+				cset_color_clear(&best_found_palette_banks[i]);
+				c_foreach(color, cset_color, tmp_palette_banks[i])
+				{
+					cset_color_insert(&best_found_palette_banks[i], *color.ref);
+				}
+			}
+
+			memcpy(best_found_palette_bank_color_sets, bank_color_sets, bank_color_sets_used * sizeof(BankColorSet));
+		}
+
+		array_shuffle(bank_color_sets, bank_color_sets_used, sizeof(BankColorSet));
+	}
+
+	for (int i = 0; i < sizeof(tmp_palette_banks) / sizeof(tmp_palette_banks[0]); ++i) {
+		cset_color_drop(&tmp_palette_banks[i]);
+	}
+
+	// Map tile to palette bank
+	c_foreach(t, cmap_ct, tiles)
+	{
+		uint32_t tile_idx = t.ref->second;
+		cset_color* tile_color_set = tile_idx_to_color_set[tile_idx];
+
+		for (int cs_idx = 0; cs_idx < bank_color_sets_used; ++cs_idx) {
+			if (tile_color_set == best_found_palette_bank_color_sets[cs_idx].colors) {
+				tile_color_sets[tile_idx].bank_idx = best_found_palette_bank_color_sets[cs_idx].bank_idx;
+				break;
 			}
 		}
 	}
 
-	// Calculate statistics
-	{
-		cset_color color_dupes = cset_color_init();
-		int total_color_count = 0;
-		int total_duplicate_count = 0;
-		int total_palette_banks_used = 0;
-		for (int i = 0; i < 16; ++i) {
-			if (palette_banks[i].size > 1) {
-				total_palette_banks_used++;
-			}
+	// Fill final palette array
+	processed_data.palette_banks_used = 0;
+	for (int bank_idx = 0; bank_idx < PALETTE_BANK_COUNT; ++bank_idx) {
+		processed_data.palette_banks[bank_idx][0] = transparent_color;
+		int color_idx = 1;
 
-			c_foreach(j, cset_color, palette_banks[i])
-			{
-				if (*j.ref == transparent_color) {
-					// Transparent color does not count as wasted space.
-					continue;
-				}
-
-				total_color_count++;
-
-				if (cset_color_contains(&color_dupes, *j.ref)) {
-					total_duplicate_count++;
-				} else {
-					cset_color_insert(&color_dupes, *j.ref);
-				}
+		c_foreach(j, cset_color, best_found_palette_banks[bank_idx])
+		{
+			uint16_t value = *j.ref;
+			if (value != transparent_color) {
+				processed_data.palette_banks[bank_idx][color_idx] = value;
+				color_idx++;
 			}
 		}
-		cset_color_drop(&color_dupes);
 
-		printf("// Percentage of colors in palette that are duplicates: %.2f%% (%i/%i)\n", (float)total_duplicate_count / (float)total_color_count * 100.0f, total_duplicate_count, total_color_count);
-		printf("// Total palette banks used: %i/%i (%.2f%%)\n", total_palette_banks_used, palette_bank_count, (float)total_palette_banks_used / (float)palette_bank_count * 100.0f);
-		printf("// Tiles used: %i/%i (%.2f%%)\n", tiles.size, 1024, (float)tiles.size / 1024.0f * 100.0f);
-	}
-
-	// Sort tile_color_sets based on tile_id so that we can index it when writing a map.
-	qsort(tile_color_sets, tiles.size, sizeof(TileColorSet), sort_tile_color_set_using_tile_id);
-
-	// Create palette array
-	uint16_t(*final_palette_banks)[16] = c_calloc(palette_banks_filled * 16, sizeof(uint16_t));
-	{
-		printf("\n");
-
-		printf("const unsigned short bg_data_palette[] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = {\n");
-
-		for (int i = 0; i < palette_banks_filled; ++i) {
-			printf("\t");
-			int idx = 0;
-			c_foreach(j, cset_color, palette_banks[i])
-			{
-				final_palette_banks[i][idx] = *j.ref;
-				idx++;
-			}
-
-			// Reverse palette
-			{
-				int end = 16 - 1;
-				for (int c = 0; c < 16 / 2; c++) {
-					int t = final_palette_banks[i][c];
-					final_palette_banks[i][c] = final_palette_banks[i][end];
-					final_palette_banks[i][end] = t;
-					end--;
-				}
-			}
-
-			for (int j = 0; j < (sizeof(final_palette_banks[0]) / sizeof(final_palette_banks[0][0])); ++j) {
-				printf("0x%04X, ", final_palette_banks[i][j]);
-			}
-
-			printf("\n");
+		if (best_found_palette_banks[bank_idx].size > 1) {
+			processed_data.palette_banks_used++;
 		}
-
-		printf("};\n\n");
 	}
 
-	// Create tiles array
+	// Fill tiles array.
 	{
-		printf("const unsigned char bg_data_tiles[] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = {\n");
+		qsort(tile_color_sets, tiles.size, sizeof(TileColorSet), sort_tile_color_set_using_tile_idx);
+
+		processed_data.tiles = calloc(tiles.size, sizeof(Tile)); // FIXME: Free me!
+		processed_data.tile_count = tiles.size;
 
 		int tile_idx = 0;
 		c_foreach(tile, cmap_ct, tiles)
 		{
 			ColoredTile ct = tile.ref->first;
-			int pb_idx = tile_color_sets[tile_idx].palette_bank_idx;
+			size_t pb_idx = tile_color_sets[tile_idx].bank_idx;
 
-			printf("\t");
+			for (int j = 0; j < 32; ++j) {
+				COLOR l = ct.color[j * 2 + 0];
+				COLOR r = ct.color[j * 2 + 1];
 
-			for (int j = 0; j < 64; j += 2) {
-				COLOR a = ct.color[j];
-				COLOR b = ct.color[j + 1];
-
-				int a_cpal_idx = -1;
-				int b_cpal_idx = -1;
-				for (int k = 0; k < sizeof(final_palette_banks[0]) / sizeof(final_palette_banks[0][0]); ++k) {
-					if (a_cpal_idx == -1 && a == final_palette_banks[pb_idx][k]) {
-						a_cpal_idx = k;
+				int l_cpal_idx = -1;
+				int r_cpal_idx = -1;
+				for (int k = 0; k < sizeof(processed_data.palette_banks[0]) / sizeof(processed_data.palette_banks[0][0]); ++k) {
+					if (l_cpal_idx == -1 && l == processed_data.palette_banks[pb_idx][k]) {
+						l_cpal_idx = k;
 					}
 
-					if (b_cpal_idx == -1 && b == final_palette_banks[pb_idx][k]) {
-						b_cpal_idx = k;
+					if (r_cpal_idx == -1 && r == processed_data.palette_banks[pb_idx][k]) {
+						r_cpal_idx = k;
 					}
 				}
 
-				printf("0x%.02X, ", (a_cpal_idx | b_cpal_idx << 4) & 0xFF);
+				processed_data.tiles[tile_idx].color_idxs[j] = (l_cpal_idx | r_cpal_idx << 4) & 0xFF;
 			}
 
 			tile_idx++;
-
-			printf("\n");
 		}
-
-		printf("};\n\n");
 	}
 
-	// Fill map array's with palette indices and print.
-	for (int idx = 0; idx < map_count; ++idx) {
-		Map* map = maps[idx];
+	// Update Map Arrays
+	for (int idx = 0; idx < processed_data.map_count; ++idx) {
+		Map* map = processed_data.maps[idx];
 		int height = map->map_height;
 		int width = map->map_width;
 
-		printf("const unsigned short %s_map[%i] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = { \n", map->map_name, width * height);
-
 		for (int y = 0; y < height; ++y) {
-			printf("\t");
-
 			for (int x = 0; x < width; ++x) {
-				int tile_id = map->tiles[y * width + x];
+				int tile_idx = map->tiles[y * width + x];
 
-				if (tile_id != tile_color_sets[tile_id].tile_id) {
+				if (tile_idx != tile_color_sets[tile_idx].tile_idx) {
 					fprintf(stderr, "FATAL ERROR: tile id's do not match! file: %s line: %i\n", __FILE__, __LINE__);
 					abort();
 				}
 
-				uint16_t palette_bits = tile_color_sets[tile_id].palette_bank_idx << 12;
-				map->tiles[y * width + x] = palette_bits | tile_id;
-
-				printf("0x%.04X, ", map->tiles[y * width + x]);
+				uint16_t palette_bits = tile_color_sets[tile_idx].bank_idx << 12;
+				map->tiles[y * width + x] = palette_bits | tile_idx;
 			}
-
-			printf("\n");
 		}
-
-		printf("};\n");
 	}
 
-	fflush(stdout);
+	calculate_and_print_statistics(&processed_data, bank_color_sets_used, transparent_color);
 
 	// Cleanup
 	{
-		c_free(final_palette_banks);
+		c_free(best_found_palette_bank_color_sets);
+		c_free(tile_idx_to_color_set);
 
-		for (int i = 0; i < sizeof(palette_banks) / sizeof(palette_banks[0]); ++i) {
-			cset_color_drop(&palette_banks[i]);
+		for (int i = 0; i < bank_color_sets_used; ++i) {
+			cset_color_drop(bank_color_sets[i].colors);
+			c_free(bank_color_sets[i].colors);
 		}
+		c_free(bank_color_sets);
 
 		for (int i = 0; i < tiles.size; ++i) {
 			cset_color_drop(&tile_color_sets[i].unique_colors);
 		}
 		c_free(tile_color_sets);
 
-		cmap_ct_drop(&tiles);
-
-		for (int i = 0; i < map_count; ++i) {
-			if (maps[i] != NULL) {
-				c_free(maps[i]);
-			}
+		for (int i = 0; i < sizeof(best_found_palette_banks) / sizeof(best_found_palette_banks[0]); ++i) {
+			cset_color_drop(&best_found_palette_banks[i]);
 		}
-		c_free(maps);
-
-		c_free(file_names);
 	}
 
 	return 0;
