@@ -194,7 +194,7 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 		tmp_palette_banks[i] = cset_color_with_capacity(PALETTE_BANK_SIZE);
 	}
 
-	for (int shuffle = 0; shuffle < brute_force_shuffle_count; ++shuffle) {
+	for (int shuffle = 0; shuffle < (brute_force_shuffle_count + 1); ++shuffle) {
 		for (int i = 0; i < sizeof(tmp_palette_banks) / sizeof(tmp_palette_banks[0]); ++i) {
 			cset_color_clear(&tmp_palette_banks[i]);
 			cset_color_insert(&tmp_palette_banks[i], transparent_color);

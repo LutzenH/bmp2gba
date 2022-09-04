@@ -19,6 +19,7 @@ set(SOURCE_FILES
         src/b2g_types.h
         src/b2g_builder.c
         src/b2g_builder.h
+        src/b2g_version.h
         src/b2g_platform.c
         src/b2g_platform.h)
 

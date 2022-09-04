@@ -1,0 +1,7 @@
+#ifndef B2G_VERSION_H
+#define B2G_VERSION_H
+
+#define B2G_VERSION_MAJOR 0
+#define B2G_VERSION_MINOR 2
+
+#endif //B2G_VERSION_H
