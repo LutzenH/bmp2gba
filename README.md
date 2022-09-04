@@ -42,7 +42,7 @@ make
 
 bmp2gba can also be compiled as an [αpε](https://justine.lol/ape.html). Which makes it possible to use a single executable binary on a multitude of platforms (Linux + Mac + Windows + FreeBSD + OpenBSD + NetBSD + BIOS).
 
-Running the following commands will produce `bmp2gba.com` which can be run on the above-mentioned platforms:
+Running the following commands on Linux with gcc installed will produce `bmp2gba.com` which can be run on the above-mentioned platforms:
 
 ```
 chmod +x compile-b2g-ape.sh
