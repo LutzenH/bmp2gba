@@ -4,7 +4,15 @@
 
 bmp2gba is a tool for homebrew GBA development written in C99 that converts a folder of .bmp files into a single c-file containing 4bpp tile, palette and map data for the GBA. The c-file is printed to stdout. Simply place the `bmp2gba.com` binary in the folder containing the `.bmp` files and pipe the output of stdout into a file. For example: `./bmp2gba.com > bg_data.c`
 
-The generated c-file can than be included and used in your homebrew GBA-project.
+The generated c-file can than be included and used in your homebrew (tonc) GBA-project.
+
+The difference between bmp2gba and alternatives like grit and gfx2gba is that for 4bpp-tiles bmp2gba guarantees that the palette-banks generated will display correctly on the GBA (assuming less than 15+1 colors are used per tile and less than 16*16 colors in total). Inorder to fit all these colors onto the palette-banks, bmp2gba tries to reduce the amount of banks used. This is first done using a first-fit-decreasing packing pass, but this sometimes produces suboptimal results that wastes too many banks. That is why the bruteforce packing pass has been added to look for better packed palettes by shuffling the color sets and keeping track of the order that uses the least amount of space.
+
+Usage:
+
+```
+bmp2gba --transparent-color FF00FF --brute-force-count 250000 > bg_data.c
+```
 
 ## Preparation
 
