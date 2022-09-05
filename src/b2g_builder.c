@@ -5,6 +5,35 @@
 #include <stdio.h>
 #include <stb_image.c>
 
+static inline ColoredTile builder_internal_h_flip_tile(const ColoredTile* tile) {
+	ColoredTile h_flipped_tile = *tile;
+
+	for (int y = 0; y < 8; ++y) {
+		size_t end = y * 8 + (8-1);
+		for (int x = 0; x < 8 / 2; x++) {
+			COLOR tmp = h_flipped_tile.color[y * 8 + x];
+			h_flipped_tile.color[y * 8 + x] = h_flipped_tile.color[end];
+			h_flipped_tile.color[end] = tmp;
+			end--;
+		}
+	}
+
+	return h_flipped_tile;
+}
+
+static inline ColoredTile builder_internal_v_flip_tile(const ColoredTile* tile) {
+	ColoredTile v_flipped_tile = *tile;
+
+	COLOR tmp[8];
+	for (int y = 0; y < 8 / 2; ++y) {
+		memcpy(tmp, &v_flipped_tile.color[y * 8], sizeof(COLOR) * 8);
+		memcpy(&v_flipped_tile.color[y * 8], &v_flipped_tile.color[(7-y) * 8], sizeof(COLOR) * 8);
+		memcpy(&v_flipped_tile.color[(7-y) * 8], tmp, sizeof(COLOR) * 8);
+	}
+
+	return v_flipped_tile;
+}
+
 BackgroundData* builder_create_background_data_from_image_paths(const char** paths, size_t paths_count, COLOR transparent_color, unsigned int brute_force_shuffle_count)
 {
 	BackgroundData* background_data = c_calloc(1, sizeof(BackgroundData));
@@ -60,8 +89,8 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 
 			background_data->maps[map_count] = c_calloc(sizeof(Map) + (sizeof(MapTileIndex) * map_width * map_height), 1);
 			Map* map = background_data->maps[map_count];
-			map->map_width = map_width;
-			map->map_height = map_height;
+			map->width = map_width;
+			map->height = map_height;
 
 			const char* map_name = strrchr(file_name, '/');
 			if (map_name != NULL) {
@@ -69,13 +98,13 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 			} else {
 				map_name = file_name;
 			}
-			snprintf(map->map_name, sizeof(map->map_name), "%s", map_name);
-			for (int j = 0; j < strlen(map->map_name); ++j) {
-				if (map->map_name[j] == ' ' || map->map_name[j] == '/' || map->map_name[j] == '\\') {
-					map->map_name[j] = '_';
+			snprintf(map->name, sizeof(map->name), "%s", map_name);
+			for (int j = 0; j < strlen(map->name); ++j) {
+				if (map->name[j] == ' ' || map->name[j] == '/' || map->name[j] == '\\') {
+					map->name[j] = '_';
 				}
-				if (map->map_name[j] == '.') {
-					map->map_name[j] = '\0';
+				if (map->name[j] == '.') {
+					map->name[j] = '\0';
 				}
 			}
 
@@ -94,15 +123,25 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 						}
 					}
 
-					uint32_t current_tile_index;
+					ColoredTile h_flipped_tile = builder_internal_h_flip_tile(&tile);
+					ColoredTile v_flipped_tile = builder_internal_v_flip_tile(&tile);
+					ColoredTile hv_flipped_tile = builder_internal_v_flip_tile(&h_flipped_tile);
+
+					MapTileIndex current_tile_index;
 					if (cmap_ct_contains(&tiles, tile)) {
-						current_tile_index = cmap_ct_get(&tiles, tile)->second;
-					} else {
+						current_tile_index = (cmap_ct_get(&tiles, tile)->second & 0x03FF);
+					} else if (cmap_ct_contains(&tiles, h_flipped_tile)) {
+						current_tile_index = 0x0400 | (cmap_ct_get(&tiles, h_flipped_tile)->second & 0x03FF);
+					} else if (cmap_ct_contains(&tiles, v_flipped_tile)) {
+						current_tile_index = 0x0800 | (cmap_ct_get(&tiles, v_flipped_tile)->second & 0x03FF);
+					} else if (cmap_ct_contains(&tiles, hv_flipped_tile)) {
+						current_tile_index = 0x0800 | 0x0400 | (cmap_ct_get(&tiles, hv_flipped_tile)->second & 0x03FF);
+					}else {
 						current_tile_index = total_unique_tiles_count;
 						cmap_ct_insert(&tiles, tile, total_unique_tiles_count++);
 					}
 
-					map_tiles[tile_y * map_width + tile_x] = current_tile_index & 0x03FF;
+					map_tiles[tile_y * map_width + tile_x] = current_tile_index;
 				}
 			}
 
@@ -176,8 +215,6 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 	}
 	background_data->tile_color_sets_reduction_count = bank_color_sets_used;
 
-	// TODO: Add tile reduction using H and V flipping.
-
 	// TODO: Make tile palette reduction possible, by adjusting the palette banks so
 	//  that colors of two similar tiles with different colors appear in the same indices in a bank.
 	//  meaning that we can have less tiles which only have a different palette bank.
@@ -222,8 +259,7 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 				}
 
 				if ((bank_space_left - ((int)set->size - overlap_count)) >= 0) {
-					c_foreach(k, cset_color, *set)
-					{
+					c_foreach(k, cset_color, *set) {
 						cset_color_insert(bank, *k.ref);
 					}
 					used_sets_count++;
@@ -338,20 +374,20 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 	// Update Map Arrays
 	for (int idx = 0; idx < background_data->map_count; ++idx) {
 		Map* map = background_data->maps[idx];
-		int height = map->map_height;
-		int width = map->map_width;
+		int height = map->height;
+		int width = map->width;
 
 		for (int y = 0; y < height; ++y) {
 			for (int x = 0; x < width; ++x) {
-				int tile_idx = map->tiles[y * width + x];
+				uint16_t tile_idx = map->tiles[y * width + x] & 0x03FF;
 
 				if (tile_idx != tile_color_sets[tile_idx].tile_idx) {
-					fprintf(stderr, "FATAL ERROR: tile id's do not match! file: %s line: %i\n", __FILE__, __LINE__);
+					fprintf(stderr, "FATAL ERROR: tile idx's do not match! file: %s line: %i\n", __FILE__, __LINE__);
 					abort();
 				}
 
 				uint16_t palette_bits = tile_color_sets[tile_idx].bank_idx << 12;
-				map->tiles[y * width + x] = palette_bits | tile_idx;
+				map->tiles[y * width + x] |= palette_bits;
 			}
 		}
 	}
@@ -463,14 +499,13 @@ void builder_internal_print_tile_data(const BackgroundData* background_data)
 
 void builder_internal_print_map_data(const Map* map)
 {
-	printf("const unsigned short %s_map[%i] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = { \n", map->map_name, map->map_width * map->map_height);
+	printf("const unsigned short %s_map[%i] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = { \n", map->name, map->width * map->height);
 
-	for (int y = 0; y < map->map_height; ++y) {
+	for (int y = 0; y < map->height; ++y) {
 		printf("\t");
 
-		for (int x = 0; x < map->map_width; ++x) {
-			int tile_id = map->tiles[y * map->map_width + x];
-			printf("0x%.04X, ", map->tiles[y * map->map_width + x]);
+		for (int x = 0; x < map->width; ++x) {
+			printf("0x%.04X, ", map->tiles[y * map->width + x]);
 		}
 
 		printf("\n");
