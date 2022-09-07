@@ -464,9 +464,10 @@ static inline void builder_internal_calculate_and_print_statistics(const Backgro
 	printf("// ------------------------------------------------------------\n");
 }
 
-void builder_internal_print_palette_data(const BackgroundData* background_data)
+void builder_internal_print_palette_data(const BackgroundData* background_data, const char* palette_array_name)
 {
-	printf("const unsigned short bg_data_palette[] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = {\n");
+	size_t array_length = background_data->palette_banks_used * PALETTE_BANK_SIZE;
+	printf("const unsigned short %s[%llu] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = {\n", palette_array_name, array_length);
 
 	for (int bank_idx = 0; bank_idx < background_data->palette_banks_used; ++bank_idx) {
 		printf("\t");
@@ -482,9 +483,10 @@ void builder_internal_print_palette_data(const BackgroundData* background_data)
 	printf("};\n");
 }
 
-void builder_internal_print_tile_data(const BackgroundData* background_data)
+void builder_internal_print_tile_data(const BackgroundData* background_data, const char* tile_array_name)
 {
-	printf("const unsigned char bg_data_tiles[] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = {\n");
+	size_t array_length = background_data->tile_count * 32;
+	printf("const unsigned char %s[%llu] __attribute__((aligned(4))) __attribute__((visibility(\"hidden\"))) = {\n", tile_array_name, array_length);
 
 	for (int tile_idx = 0; tile_idx < background_data->tile_count; ++tile_idx) {
 		printf("\t");
@@ -514,13 +516,13 @@ void builder_internal_print_map_data(const Map* map)
 	printf("};\n");
 }
 
-void builder_print_background_data_c_file_to_stdout(const BackgroundData* background_data)
+void builder_print_background_data_c_file_to_stdout(const BackgroundData* background_data, const char* palette_array_name, const char* tile_array_name)
 {
 	builder_internal_calculate_and_print_statistics(background_data);
 	printf("\n");
-	builder_internal_print_palette_data(background_data);
+	builder_internal_print_palette_data(background_data, palette_array_name);
 	printf("\n");
-	builder_internal_print_tile_data(background_data);
+	builder_internal_print_tile_data(background_data, tile_array_name);
 	for (int map_idx = 0; map_idx < background_data->map_count; ++map_idx) {
 		printf("\n");
 		builder_internal_print_map_data(background_data->maps[map_idx]);

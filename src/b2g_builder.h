@@ -23,6 +23,6 @@ typedef struct {
 BackgroundData* builder_create_background_data_from_image_paths(const char** paths, size_t paths_count, COLOR transparent_color, unsigned int brute_force_shuffle_count);
 void builder_free_background_data(BackgroundData* background_data);
 
-void builder_print_background_data_c_file_to_stdout(const BackgroundData* background_data);
+void builder_print_background_data_c_file_to_stdout(const BackgroundData* background_data, const char* palette_array_name, const char* tile_array_name);
 
 #endif //B2G_BUILDER_H
