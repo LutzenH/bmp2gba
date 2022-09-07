@@ -2,6 +2,6 @@
 #define B2G_VERSION_H
 
 #define B2G_VERSION_MAJOR 0
-#define B2G_VERSION_MINOR 3
+#define B2G_VERSION_MINOR 4
 
 #endif //B2G_VERSION_H
