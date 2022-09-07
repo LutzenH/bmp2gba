@@ -187,8 +187,8 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 		}
 		if (invalid_tiles > 0) {
 			// TODO: Print out what the position of the tiles are in the first .bmp they appear in.
-			fprintf(stderr, "There are %i tiles that contain 15+1 or more colors. Is the right transparent-color being used? Aborting...\n", invalid_tiles);
-			abort();
+			fprintf(stderr, "There are %i tiles that contain 15+1 or more colors. Is the right transparent-color being used? Exiting...\n", invalid_tiles);
+			exit(1);
 		}
 	}
 
@@ -318,8 +318,8 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 	}
 
 	if (best_found_palette_bank_color_sum == UINT_MAX) {
-		fprintf(stderr, "Failed to find any palette that can contain all of the color sets, Maybe try to increase the brute-force-count? Aborting...\n");
-		abort();
+		fprintf(stderr, "Failed to find any palette that can contain all of the color sets, Maybe try to increase the brute-force-count? Exiting...\n");
+		exit(1);
 	}
 
 	// Map tile to palette bank
