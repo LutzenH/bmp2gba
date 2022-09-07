@@ -177,6 +177,19 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 			idx++;
 		}
 		qsort(tile_color_sets, tiles.size, sizeof(TileColorSet), sort_tile_color_set_using_unique_color_count);
+
+		int invalid_tiles = 0;
+		for (idx = 0; idx < tiles.size; ++idx) {
+			cset_color* colors = &tile_color_sets[idx].unique_colors;
+			if ((colors->size > 16) || (colors->size == 16 && !cset_color_contains(colors, transparent_color))) {
+				invalid_tiles++;
+			}
+		}
+		if (invalid_tiles > 0) {
+			// TODO: Print out what the position of the tiles are in the first .bmp they appear in.
+			fprintf(stderr, "There are %i tiles that contain 15+1 or more colors. Is the right transparent-color being used? Aborting...\n", invalid_tiles);
+			abort();
+		}
 	}
 
 	// Reduce the amount of sets by removing overlapping sets.
@@ -302,6 +315,11 @@ BackgroundData* builder_create_background_data_from_image_paths(const char** pat
 
 	for (int i = 0; i < sizeof(tmp_palette_banks) / sizeof(tmp_palette_banks[0]); ++i) {
 		cset_color_drop(&tmp_palette_banks[i]);
+	}
+
+	if (best_found_palette_bank_color_sum == UINT_MAX) {
+		fprintf(stderr, "Failed to find any palette that can contain all of the color sets, Maybe try to increase the brute-force-count? Aborting...\n");
+		abort();
 	}
 
 	// Map tile to palette bank
