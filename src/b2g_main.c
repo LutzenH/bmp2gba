@@ -112,6 +112,10 @@ int main(int argc, char* argv[])
 	const char** file_names = platform_list_files_within_folder(".", &file_names_count, false, ".bmp");
 
 	BackgroundData* bg_data = builder_create_background_data_from_image_paths(file_names, file_names_count, transparent_color, opt_brute_force_shuffle_count);
+	if (bg_data == NULL) {
+		return 1;
+	}
+
 	c_free(file_names);
 
 	builder_print_background_data_c_file_to_stdout(bg_data, palette_array_name, tile_array_name);
